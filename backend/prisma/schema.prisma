@@ -12,7 +12,14 @@ datasource db {
   provider = "postgresql"
 }
 
+model user {
+        name     String
+        userId       String  @id @default(uuid())
+        gender       String
+        email        String
+        password     String  
 
+    }
 
 model Submission {
   id        String   @id @default(uuid())
