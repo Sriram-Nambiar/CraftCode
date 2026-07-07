@@ -1,18 +1,12 @@
 import { createClient } from "redis";
-import fs from "fs/promises";
-import { exec } from "child_process";
-import util from "util";
+import fs from "fs";
+import { spawn } from "child_process";
+import { prisma } from "./db";
 
-// Convert callback-based exec to Promise-based
-const execPromise = util.promisify(exec);
-
-const client = createClient();
-
+const client = createClient()
 client.connect()
     .then(async () => {
-        console.log("Worker is running and waiting for jobs...");
-
-        while (1) {
+        while(1) {
             const response = await client.rPop("problems");
             if (!response) {
                 await new Promise((r) => setTimeout(r, 1000));
@@ -20,59 +14,146 @@ client.connect()
             }
 
             const parsedResponse = JSON.parse(response);
-            console.log("\nReceived job from Redis:", parsedResponse);
-
             const code = parsedResponse.code;
             const language = parsedResponse.language;
             const submissionId = parsedResponse.submissionId;
+            console.log("processing question for user " + parsedResponse.userId);
+            let finalOutput = "";
 
-            // Handle both "c++" and "cpp" string variations
-            if (language === "c++" || language === "cpp") {
-                console.log(`Running C++ code for job ${submissionId}`);
+            //TODO: Add a timeout so that if the user code takes more than 5 seconds to execute
+            // you change the status in the DB to TLE. 
 
-                const cppFileName = `temp_${submissionId}.cpp`;
-                const exeFileName = `temp_${submissionId}.exe`; // .exe for Windows
-                let output = "";
-
-                try {
-                    // 1. Write the code to a temporary file
-                    await fs.writeFile(cppFileName, code);
-
-                    // 2. Compile the code natively on Windows
-                    await execPromise(`g++ ${cppFileName} -o ${exeFileName}`);
-
-                    // 3. Execute the binary with a timeout
-                    const { stdout } = await execPromise(exeFileName, { timeout: 5000 });
-                    output = stdout;
-                    console.log("Execution Output:\n", output);
-
-                    // 4. Save success to Redis for 1 hour
-                    await client.setEx(`result:${submissionId}`, 3600, JSON.stringify({
-                        status: "Success",
-                        output: output
-                    }));
-
-                } catch (error) {
-                    // Catch compilation errors, runtime errors, or timeouts
-                    const err = error as any;
-                    output = err.stderr || err.message || "Unknown execution error";
-                    console.error("Compilation/Execution Error:\n", output);
-
-                    // Save error to Redis for 1 hour
-                    await client.setEx(`result:${submissionId}`, 3600, JSON.stringify({
-                        status: "Error",
-                        output: output
-                    }));
-                } finally {
-                    // 5. Cleanup temp files so your hard drive doesn't fill up
-                    try {
-                        await fs.unlink(cppFileName).catch(() => { });
-                        await fs.unlink(exeFileName).catch(() => { });
-                    } catch (cleanupError) {
-                        console.error("Failed to clean up files", cleanupError);
-                    }
+            if (language === "cpp") {
+                console.log("Running users c++ code")
+                const filePath = __dirname + "/code/a.cpp";
+                fs.writeFileSync(filePath, code);
+                const reponseCompiler = spawn("g++", [filePath, "-o", "./code/out"]);
+                let exitCodeCompiler = null;
+                await new Promise<void>(resolve => {
+                    reponseCompiler.on("exit", async (exitCode) => {
+                        exitCodeCompiler = exitCode;
+                        if (exitCode !== 0) {
+                            await prisma.submissions.update({
+                                where: {
+                                    id: submissionId
+                                },
+                                data: {
+                                    status: "Failure",
+                                }
+                            })
+                        }
+                        resolve()
+                    })
+                })
+                
+                if (exitCodeCompiler !== 0) {
+                    continue;
                 }
+
+                const response = spawn("./code/out");
+                response.stdout.on("data", (chunk) => {
+                    finalOutput += chunk.toString();
+                })
+
+                await new Promise<void>(resolve => {
+                    response.on("exit", async (exitCode) => {
+                        console.log(exitCode);
+                        if (exitCode === 0) {
+                            await prisma.submissions.update({
+                                where: {
+                                    id: submissionId
+                                },
+                                data: {
+                                    status: "Success",
+                                    output: finalOutput
+                                }
+                            })
+                        } else {
+                            await prisma.submissions.update({
+                                where: {
+                                    id: submissionId
+                                },
+                                data: {
+                                    status: "Failure",
+                                }
+                            })
+                        }
+                        resolve()
+                    })
+                })
+
+                // sandboxing
             }
+
+            if (language === "js") {
+                const filePath = __dirname + "/code/a.js";
+                console.log("Running users js code")
+                fs.writeFileSync(filePath, code);
+                const response = spawn("node", [filePath]);
+                response.stdout.on("data", (chunk) => {
+                    finalOutput += chunk.toString();
+                })
+                await new Promise<void>(resolve => {
+                    response.on("exit", async (exitCode) => {
+                        if (exitCode === 0) {
+                            await prisma.submissions.update({
+                                where: {
+                                    id: submissionId
+                                },
+                                data: {
+                                    status: "Success",
+                                    output: finalOutput
+                                }
+                            })
+                        } else {
+                            await prisma.submissions.update({
+                                where: {
+                                    id: submissionId
+                                },
+                                data: {
+                                    status: "Failure",
+                                }
+                            })
+                        }
+                        resolve()
+                    })
+                })
+            }
+
+            if (language === "py") {
+                const filePath = __dirname + "/code/a.py";
+                console.log("Running users js code")
+                fs.writeFileSync(filePath, code);
+                const response = spawn("python", [filePath]);
+                response.stdout.on("data", (chunk) => {
+                    finalOutput += chunk.toString();
+                })
+                await new Promise<void>(resolve => {
+                    response.on("exit", async (exitCode) => {
+                        if (exitCode === 0) {
+                            await prisma.submissions.update({
+                                where: {
+                                    id: submissionId
+                                },
+                                data: {
+                                    status: "Success",
+                                    output: finalOutput
+                                }
+                            })
+                        } else {
+                            await prisma.submissions.update({
+                                where: {
+                                    id: submissionId
+                                },
+                                data: {
+                                    status: "Failure",
+                                }
+                            })
+                        }
+                        resolve()
+                    })
+                })
+            }
+            // Update the status in the DB
         }
-    })
-    .catch(console.error);
+    });
