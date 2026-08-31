@@ -1,184 +1,388 @@
 <div align="center">
 
-# 🛠️ CraftCode
+# CraftCode
 
-### Learn to code by actually building.
+### A small distributed code-execution platform built to learn backend systems.
 
-A "learn by building" coding education platform — pick a real project, code it step-by-step in an in-browser IDE, pass automated tests to advance, and climb a live leaderboard.
-
-[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-Express-green?logo=node.js)](https://nodejs.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Prisma-336791?logo=postgresql)](https://www.postgresql.org/)
-[![Socket.io](https://img.shields.io/badge/Realtime-Socket.io-black?logo=socket.io)](https://socket.io/)
-[![Stripe](https://img.shields.io/badge/Payments-Stripe-635BFF?logo=stripe)](https://stripe.com/)
-[![License](https://img.shields.io/badge/license-MIT-lightgrey)](#license)
+CraftCode is a work-in-progress coding platform where users can submit C++, JavaScript, or Python code from a React frontend. Submissions are queued through Redis and processed asynchronously by a separate worker that compiles or executes the code and records the result.
 
 </div>
 
 ---
 
-## ✨ What is CraftCode?
+## What is CraftCode?
 
-Most tutorials teach you to *watch*. CraftCode teaches you to *ship*.
+CraftCode started as a project to understand how online code execution systems work behind the scenes.
 
-Instead of passive video lessons, users:
+Instead of making the API server compile and execute user code directly, the project separates the work into three parts:
 
-1. 🎯 **Pick a real project** — Todo App, Weather App, Snake Game, Full-Stack Blog, and more
-2. 📋 **Follow guided steps** — clear instructions broken into small, buildable chunks
-3. 💻 **Write real code** — in a full Monaco editor (the same one powering VS Code), right in the browser
-4. ✅ **Pass automated tests** — to unlock the next step, no guesswork on "did I do it right?"
-5. 🏆 **Get scored** — based on speed and hints used
-6. 📊 **Compete** — on live, per-project leaderboards
+1. **Frontend** — accepts code and a programming language from the user.
+2. **Backend API** — receives a submission and pushes it into a Redis queue.
+3. **Worker** — consumes queued submissions, runs the code, captures the output, and updates the submission status.
 
-No setup, no local environment, no "tutorial hell." Just you, the editor, and a project that actually works when you're done.
+The main idea behind the project is to explore asynchronous job processing and the producer-consumer pattern used in backend systems.
 
 ---
 
-## 🚀 Features
+## Current Features
 
-| | |
+- Submit code through a React + TypeScript frontend
+- Select between C++, JavaScript, and Python
+- Express API for accepting code submissions
+- Unique submission IDs for queued jobs
+- Redis-backed submission queue
+- Separate worker process for code execution
+- C++ compilation using `g++`
+- JavaScript execution using Node.js
+- Python execution using Python
+- Capture program `stdout`
+- Track execution status using Prisma and PostgreSQL
+- Basic frontend polling flow for submission results
+
+---
+
+## Architecture
+
+```text
+                  POST /submission
+┌──────────────┐  ────────────────▶  ┌──────────────┐
+│              │                     │              │
+│ React Client │                     │ Express API  │
+│              │                     │              │
+└──────────────┘                     └──────┬───────┘
+                                           │
+                                           │ LPUSH
+                                           ▼
+                                    ┌──────────────┐
+                                    │    Redis     │
+                                    │    Queue     │
+                                    └──────┬───────┘
+                                           │
+                                           │ RPOP
+                                           ▼
+                                    ┌──────────────┐
+                                    │    Worker    │
+                                    └──────┬───────┘
+                                           │
+                         ┌─────────────────┼─────────────────┐
+                         ▼                 ▼                 ▼
+                       g++               Node.js           Python
+                         │                 │                 │
+                         └─────────────────┼─────────────────┘
+                                           ▼
+                                    ┌──────────────┐
+                                    │ PostgreSQL   │
+                                    │   + Prisma   │
+                                    └──────────────┘
+```
+
+The backend acts as the **producer**, Redis acts as the **job queue**, and the worker acts as the **consumer**.
+
+---
+
+## Tech Stack
+
+| Area | Technology |
 |---|---|
-| 🖥️ **In-browser IDE** | Monaco Editor with VS Code-like editing, syntax highlighting, and autosave |
-| 🧪 **Automated test runner** | Sandboxed, client-side iframe test execution — instant feedback, zero server cost |
-| ⏱️ **Time & hint-based scoring** | `1000 − (10 × minutes) − (50 × hints)` — speed and independence both count |
-| 📈 **Real-time leaderboards** | Live rank updates via Socket.io as users complete projects |
-| 🔐 **Flexible auth** | Email/password or Google OAuth via NextAuth.js |
-| 💳 **Subscriptions** | Stripe-powered Free/Pro tiers with checkout, billing portal, and webhooks |
-| 🔥 **Streaks** | Daily activity streaks with freezes, reminder emails, and at-risk nudges |
-| 🤖 **AI Hint Assistant (Pro)** | A Claude-powered tutor that helps you debug and understand — without ever giving away the solution |
-| 🏆 **Weekly Challenges** | A fresh timed project every Monday, with badges for the top 3 finishers |
-| 👤 **Public profiles** | Showcase completed projects, scores, and earned badges |
-| 🎮 **Guest mode** | Try a project before creating an account |
+| Frontend | React 19, TypeScript, Tailwind CSS |
+| UI | Radix UI components |
+| HTTP client | Axios |
+| Backend | Express 5, TypeScript |
+| Runtime / tooling | Bun |
+| Queue | Redis |
+| Worker | TypeScript + Node child processes |
+| Database | PostgreSQL |
+| ORM | Prisma |
+| C++ execution | `g++` |
+| JavaScript execution | Node.js |
+| Python execution | Python |
 
 ---
 
-## 🧱 Tech Stack
+## Repository Structure
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | Next.js 14 (App Router) · TypeScript · Tailwind CSS |
-| **Backend** | Node.js · Express · TypeScript |
-| **Database** | PostgreSQL · Prisma ORM |
-| **Auth** | NextAuth.js v5 (Credentials + Google OAuth) |
-| **Code Editor** | Monaco Editor (`@monaco-editor/react`) |
-| **Test Execution** | Client-side sandboxed `<iframe>` |
-| **Real-time** | Socket.io |
-| **Payments** | Stripe (Checkout, Portal, Webhooks) |
-| **AI** | Anthropic Claude API (contextual hints) |
-| **Email** | Resend |
-| **Monorepo** | pnpm workspaces |
-| **Deployment** | Vercel (frontend) · Railway (backend + DB) |
-
----
-
-## 📂 Repository Structure
-
-```
-craftcode/
-├── apps/
-│   ├── web/                    ← Next.js 14 frontend (port 3000)
-│   └── api/                    ← Express backend (port 4000)
-├── packages/
-│   ├── db/                     ← Prisma schema + shared DB client
-│   ├── types/                  ← Shared TypeScript types
-│   └── test-runner/            ← iframe-based test execution logic
-├── pnpm-workspace.yaml
-├── package.json
-└── tsconfig.base.json
+```text
+CraftCode/
+├── backend/
+│   ├── index.ts
+│   ├── package.json
+│   └── prisma/
+│       ├── schema.prisma
+│       └── migrations/
+│
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx
+│   │   ├── APITester.tsx
+│   │   └── components/
+│   ├── package.json
+│   └── build.ts
+│
+├── worker/
+│   ├── index.ts
+│   ├── db.ts
+│   ├── code/
+│   ├── package.json
+│   └── prisma/
+│       └── schema.prisma
+│
+└── Readme.md
 ```
 
 ---
 
-## 🖼️ The Workspace
+## Submission Flow
 
-The core of the product — a full-screen split-pane coding environment:
+### 1. User submits code
 
+The frontend sends the source code and selected language to:
+
+```http
+POST /submission
 ```
-┌──────────────────────────────────────────────────┐
-│  ← Todo App   |   Step 2 of 6   |   ⏱ 04:32     │
-├──────────────────┬───────────────────────────────┤
-│  INSTRUCTIONS    │   MONACO CODE EDITOR          │
-│  Step title      │   (vs-dark theme)             │
-│  Markdown text   │                               │
-│  ──────────────  │                               │
-│  Hints (2 left)  │                               │
-│  [▶ Run Tests]   │                               │
-├──────────────────┴───────────────────────────────┤
-│  TEST RESULTS  ✓ 1/3 passing                     │
-│  ✓ Page has an <input> element                   │
-│  ✗ Input placeholder is "Add a todo"             │
-└──────────────────────────────────────────────────┘
+
+Example request:
+
+```json
+{
+  "code": "print('Hello from CraftCode')",
+  "language": "py"
+}
 ```
+
+### 2. Backend queues the job
+
+The API generates a UUID and pushes the submission payload into the Redis list:
+
+```text
+problems
+```
+
+The payload also supports `userId` and `questionId`, although the current frontend does not provide them.
+
+### 3. Worker processes the submission
+
+The worker continuously consumes jobs from Redis.
+
+Depending on the language, it:
+
+- writes C++ code to a `.cpp` file and compiles it with `g++`
+- writes JavaScript code to a `.js` file and runs it with Node.js
+- writes Python code to a `.py` file and runs it with Python
+
+The worker captures standard output and marks submissions as `Processing`, `Success`, or `Failure` in its Prisma-backed database flow.
 
 ---
 
-## 🏁 Scoring
+## Local Development
 
-```
-score = max(0, 1000 − (minutes taken × 10) − (hints used × 50))
-```
+### Prerequisites
 
-Ranked by score (descending), with earlier completion as the tiebreaker.
+You currently need:
 
----
+- [Bun](https://bun.sh/)
+- Redis running locally on the default Redis port
+- PostgreSQL
+- Node.js
+- Python
+- `g++`
 
-## 💳 Pricing
-
-| Tier | Price | Access |
-|------|-------|--------|
-| **Free** | $0 | Beginner projects: Todo App, Calculator, Ecommerce Page, Weather App |
-| **Pro** | $12/mo or $99/yr | Everything, plus advanced projects: Chat App, Snake Game, REST API, Full-Stack Blog, and the AI Hint Assistant |
-
----
-
-## 🗺️ Getting Started
+### Clone the repository
 
 ```bash
-# Clone the repo
-git clone https://github.com/<your-username>/craftcode.git
-cd craftcode
-
-# Install dependencies (pnpm workspaces)
-pnpm install
-
-# Set up environment variables
-cp apps/web/.env.example apps/web/.env
-cp apps/api/.env.example apps/api/.env
-
-# Run database migrations
-pnpm --filter db prisma migrate dev
-
-# Start dev servers (web on :3000, api on :4000)
-pnpm dev
+git clone https://github.com/Sriram-Nambiar/CraftCode.git
+cd CraftCode
 ```
 
-### Required environment variables
+### Start Redis
+
+For example, if Redis is installed locally:
 
 ```bash
-# apps/api/.env
-DATABASE_URL=postgresql://...
-STRIPE_SECRET_KEY=sk_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-ANTHROPIC_API_KEY=sk-ant-...       # AI Hint Assistant
-RESEND_API_KEY=re_...              # Streak reminder emails
-CRON_SECRET=...                    # Internal cron auth
+redis-server
+```
+
+### Configure PostgreSQL
+
+Set a `DATABASE_URL` environment variable for the worker:
+
+```bash
+export DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/DATABASE"
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/DATABASE"
+```
+
+### Install dependencies
+
+```bash
+cd backend
+bun install
+
+cd ../worker
+bun install
+
+cd ../frontend
+bun install
+```
+
+### Generate the Prisma client
+
+From the worker directory:
+
+```bash
+bunx prisma generate
+```
+
+Configure PostgreSQL before applying any Prisma schema or migration changes.
+
+### Start the backend
+
+```bash
+cd backend
+bun index.ts
+```
+
+The backend listens on:
+
+```text
+http://localhost:3000
+```
+
+### Start the worker
+
+In another terminal:
+
+```bash
+cd worker
+bun index.ts
+```
+
+### Start the frontend
+
+In another terminal:
+
+```bash
+cd frontend
+bun run dev
+```
+
+The frontend development server is configured to run on:
+
+```text
+http://localhost:3003
 ```
 
 ---
 
-## 🤝 Contributing
+## API
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](../../issues) or open a PR.
+### Submit code
 
-## 📄 License
+```http
+POST /submission
+```
 
-Distributed under the MIT License. See `LICENSE` for details.
+Request shape:
+
+```json
+{
+  "userId": "optional/currently not supplied by the UI",
+  "questionId": "optional/currently not supplied by the UI",
+  "code": "source code",
+  "language": "cpp | js | py"
+}
+```
+
+Response:
+
+```json
+{
+  "message": "processing",
+  "submissionId": "generated-uuid"
+}
+```
+
+### Check a submission
+
+```http
+GET /submission/:submissionId
+```
+
+The repository contains an early implementation of result polling. The result-storage path between the API and worker still needs to be unified before this flow is fully reliable.
 
 ---
 
-<div align="center">
+## Current Limitations
 
-**Built for people who learn by doing.**
+CraftCode is an early-stage learning project and is **not safe for production use yet**.
 
-</div>
+Important limitations include:
+
+- **No sandboxing:** submitted programs are currently executed directly on the worker machine.
+- **No execution timeout:** an infinite loop can keep running indefinitely.
+- **No CPU or memory limits.**
+- **No isolated filesystem.**
+- **No test-case / stdin judging system yet.**
+- **No detailed compilation or runtime error output in the UI.**
+- **Single shared source filenames:** concurrent submissions could overwrite each other's temporary files.
+- **Result storage is not fully unified:** the backend currently looks for results in Redis while the worker updates PostgreSQL.
+- **Frontend/API response naming needs cleanup:** the frontend expects `id` while the backend returns `submissionId`.
+- **Authentication and user-specific submissions are not implemented yet.**
+
+---
+
+## Next Steps
+
+- [ ] Run every submission inside an isolated container or sandbox
+- [ ] Add execution timeouts
+- [ ] Add CPU and memory limits
+- [ ] Use unique temporary directories per submission
+- [ ] Add stdin and automated test cases
+- [ ] Return compilation/runtime errors
+- [ ] Unify Redis/PostgreSQL submission state
+- [ ] Fix frontend polling and submission ID handling
+- [ ] Add submission history
+- [ ] Add authentication
+- [ ] Add WebSocket or Server-Sent Events for live status updates
+- [ ] Support multiple worker instances safely
+- [ ] Add automated tests and CI
+
+---
+
+## Why I Built This
+
+I built CraftCode mainly to learn backend engineering concepts beyond a basic CRUD application.
+
+Through this project I have been exploring:
+
+- asynchronous job queues
+- Redis
+- producer-consumer architecture
+- worker processes
+- process execution
+- PostgreSQL and Prisma
+- frontend/backend communication
+- polling
+- problems involved in safely executing untrusted code
+
+The project is still evolving as I learn more about backend systems, infrastructure, and DevOps.
+
+---
+
+## Disclaimer
+
+CraftCode currently executes submitted code directly on the host machine.
+
+**Do not expose the current version to untrusted users or run arbitrary third-party code with it.**
+
+A proper sandboxing layer should be added before any public deployment.
+
+---
+
+## Author
+
+Built by [Sriram Nambiar](https://github.com/Sriram-Nambiar).
