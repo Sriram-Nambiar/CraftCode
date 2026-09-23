@@ -11,7 +11,7 @@ CraftCode is a work-in-progress coding platform where users can submit C++, Java
 ---
 
 ## What is CraftCode?
-
+A web-based code execution platform that allows users to write, compile, and execute code in real time across multiple programming languages, including C++, JavaScript, Python, and more.
 CraftCode started as a project to understand how online code execution systems work behind the scenes.
 
 Instead of making the API server compile and execute user code directly, the project separates the work into three parts:
